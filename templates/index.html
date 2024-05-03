@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Military Transition Assistant</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- jQuery -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <style>
+        /* Custom CSS for chat window */
+        #chatWindow {
+            background-color: black;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 0 auto; /* Center the chat window */
+        }
+        .chat-message {
+            margin-bottom: 10px; /* Space between messages */
+            line-height: 1.5; /* Makes text easier to read */
+        }
+        .chat-message.user {
+            text-align: right;
+            color: #F0FFFF;
+        }
+        .chat-message.assistant {
+            text-align: left;
+            color: #7FFF00;
+        }
+        #loading {
+            text-align: center;
+            color: red;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Military Transition Assistant</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="resumeTab" data-toggle="tab" href="#resumeWindow">Resume Conversion</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="chatTab" data-toggle="tab" href="#chatInterface">Career Exploration Chat</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+
+<div class="container mt-5">
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="resumeWindow">
+            <h2>Convert Your Military Resume to a Civilian Resume</h2>
+            <form action="/convert-resume" method="post">
+                <div class="mb-3">
+                    <label for="resumeText" class="form-label">Paste Your Military Resume:</label>
+                    <textarea class="form-control" id="resumeText" name="resume_text" rows="10" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Convert</button>
+            </form>
+            {% if original and response %}
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <h4>Original Resume:</h4>
+                    <pre id="originalResume">{{ original }}</pre>
+                </div>
+                <div class="col-md-6">
+                    <h4>Civilianized Resume:</h4>
+                    <pre id="convertedResume">{{ response }}</pre>
+                    <button onclick="copyToClipboard('#convertedResume')" class="btn btn-secondary">Copy to Clipboard</button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        <div class="tab-pane fade" id="chatInterface">
+            <h2>Career Exploration Chat</h2>
+            <div class="card">
+                <div class="card-body">
+                    <div id="chatWindow" style="height: 600px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px;">
+                        <!-- Chat messages will be displayed here -->
+                    </div>
+                    <textarea id="chatInput" class="form-control mt-3" placeholder="Type your question..." rows="3"></textarea>
+                    <button onclick="sendMessage()" class="btn btn-primary mt-2">Send</button>
+                    <div id="loading" style="display: none;">Assistant is thinking...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 
+<script>
+    function copyToClipboard(element) {
+        var text = document.querySelector(element).innerText;
+        navigator.clipboard.writeText(text).then(function() {
+            alert('Copied to clipboard!');
+        }).catch(function(err) {
+            alert('Error in copying text: ', err);
+        });
+    }
+    
+    function sendMessage() {
+        var inputElement = document.getElementById('chatInput');
+        var message = inputElement.value;
+        inputElement.value = ''; // Clear input after sending
+        updateChatWindow('user', message);
+        showLoading(true);
+    
+        fetch('/send-message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: message })
+        })
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            updateChatWindow('assistant', data.response);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showLoading(false);
+        });
+    }
+    
+    function updateChatWindow(sender, message) {
+        var chatWindow = document.getElementById('chatWindow');
+        var messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message ' + sender;
+    
+        // Format message by adding paragraphs in JavaScript
+        let formattedMessage = message.replace(/(?<![0-9])([.!?])\s+/g, '$1<br><br>');
+        messageDiv.innerHTML = (sender === 'user' ? 'You: ' : 'Assistant: ') + formattedMessage;
+    
+        chatWindow.appendChild(messageDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to the latest message
+    }        
+    
+    function showLoading(isVisible) {
+        var loadingElement = document.getElementById('loading');
+        loadingElement.style.display = isVisible ? 'block' : 'none';
+    }
+
+    $(document).ready(function(){
+        // Initialize Bootstrap tabs
+        $('#resumeTab').on('click', function () {
+            $('#chatTab').removeClass('active');
+            $('#resumeTab').addClass('active');
+            $('#chatInterface').removeClass('active show');
+            $('#resumeWindow').addClass('active show');
+        });
+
+        $('#chatTab').on('click', function () {
+            $('#resumeTab').removeClass('active');
+            $('#chatTab').addClass('active');
+            $('#resumeWindow').removeClass('active show');
+            $('#chatInterface').addClass('active show');
+        });
+    });
+    
+</script>
+
+</body>
+</html>
