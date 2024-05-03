@@ -2,6 +2,8 @@
 
 Welcome to the Military Transition Support App! This application is designed to assist military personnel transitioning to civilian life by providing various tools and resources.
 
+Access the live version here: https://military-resume.azurewebsites.net/
+
 ## Getting Started
 
 To get started with the Military Transition Support App, follow these steps:
@@ -61,10 +63,8 @@ To get started with the Military Transition Support App, follow these steps:
 
 Once you've installed the dependencies and set up your environment variables, you can run the app:
 
-    ```
     python app.py
 
-    ```
 
 The app will start running locally, and you can access it in your web browser at `http://localhost:5000`.
 
