@@ -95,6 +95,10 @@
                     <textarea id="chatInput" class="form-control mt-3" placeholder="Type your question..." rows="3"></textarea>
                     <button onclick="sendMessage()" class="btn btn-primary mt-2">Send</button>
                     <button onclick="startVoiceInput()" class="btn btn-secondary mt-2" id="startSpeechButton">Start Speech</button>
+                    <div class="custom-control custom-switch mt-2">
+                        <input type="checkbox" class="custom-control-input" id="speechToggle">
+                        <label class="custom-control-label" for="speechToggle">Audio Response</label>
+                    </div>
                     <div id="loading" style="display: none;">Assistant is thinking...</div>
                 </div>
                 
@@ -178,7 +182,11 @@
         .then(data => {
             showLoading(false);
             updateChatWindow('assistant', data.response);
-            speak(data.response); // Read out the response using text-to-speech
+            // Check if speech mode is enabled before speaking
+            var isSpeechEnabled = document.getElementById('speechToggle').checked;
+            if (isSpeechEnabled) {
+                speak(data.response); // Read out the response using text-to-speech only if toggle is on
+            }
         })
         .catch(error => {
             console.error('Error:', error);
