@@ -94,8 +94,10 @@
                     </div>
                     <textarea id="chatInput" class="form-control mt-3" placeholder="Type your question..." rows="3"></textarea>
                     <button onclick="sendMessage()" class="btn btn-primary mt-2">Send</button>
+                    <button onclick="startVoiceInput()" class="btn btn-secondary mt-2" id="startSpeechButton">Start Speech</button>
                     <div id="loading" style="display: none;">Assistant is thinking...</div>
                 </div>
+                
             </div>
         </div>
     </div>
@@ -110,31 +112,105 @@
         });
     }
     
+    // Prepare speech synthesis
+    const synth = window.speechSynthesis;
+
+    function startVoiceInput() {
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'en-US';  // Set the language of the recognizer
+        recognition.interimResults = false;  // Set whether to return interim results
+        recognition.maxAlternatives = 1;  // Define the number of alternative potential matches
+    
+        recognition.start();  // Start the speech recognition
+    
+        // Access the button using the corrected ID
+        const startButton = document.getElementById('startSpeechButton');
+    
+        // Safe check if the element exists
+        if (startButton) {
+            startButton.classList.add('btn-warning');  // Indicate recording
+            startButton.textContent = 'Listening...';  // Change button text
+        }
+    
+        recognition.onresult = function(event) {
+            const speechResult = event.results[0][0].transcript;
+            document.getElementById('chatInput').value = speechResult;  // Display recognized text in textarea
+            if (startButton) {
+                startButton.classList.remove('btn-warning');
+                startButton.textContent = 'Start Speech';  // Reset button text
+            }
+            sendMessage();  // Optionally send the message immediately after speaking
+        };
+    
+        recognition.onerror = function(event) {
+            console.error('Speech recognition error', event.error);
+            if (startButton) {
+                startButton.classList.remove('btn-warning');
+                startButton.textContent = 'Start Speech';
+            }
+        };
+    
+        recognition.onend = function() {
+            if (startButton) {
+                startButton.classList.remove('btn-warning');
+                startButton.textContent = 'Start Speech';
+            }
+            console.log('Speech recognition service disconnected');
+        };
+    }
+    
+    
+
+    // Modify sendMessage to handle voice responses
     function sendMessage() {
         var inputElement = document.getElementById('chatInput');
         var message = inputElement.value;
         inputElement.value = ''; // Clear input after sending
         updateChatWindow('user', message);
         showLoading(true);
-    
+
         fetch('/send-message', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ message: message })
         })
         .then(response => response.json())
         .then(data => {
             showLoading(false);
             updateChatWindow('assistant', data.response);
+            speak(data.response); // Read out the response using text-to-speech
         })
         .catch(error => {
             console.error('Error:', error);
             showLoading(false);
         });
     }
+
+    function speak(text) {
+        fetch('/text-to-speech', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ text: text })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to synthesize speech');
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.play();
+        })
+        .catch(error => {
+            console.error('Error synthesizing speech:', error);
+        });
+    }
     
+
     function updateChatWindow(sender, message) {
         var chatWindow = document.getElementById('chatWindow');
         var messageDiv = document.createElement('div');

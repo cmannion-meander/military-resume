@@ -1,7 +1,9 @@
+import azure.cognitiveservices.speech as speechsdk
+import io
 import os
 
 from dotenv import load_dotenv, find_dotenv
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, send_file
 from openai import AzureOpenAI
 from pathlib import Path
 
@@ -17,6 +19,14 @@ client = AzureOpenAI(
     api_version="2024-02-01",
     azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT")
 )
+
+# Set up Azure Speech-to-Text and Text-to-Speech credentials
+speech_key = os.getenv("SPEECH_API_KEY")
+service_region = "eastus"
+speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
+speech_config.speech_synthesis_language = "en-NZ"
+speech_config.speech_synthesis_voice_name = "en-US-JennyNeural"
+speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
 
 deployment_name='mannion-gpt35'
 
@@ -67,6 +77,63 @@ def send_message():
     
     return jsonify({'response': formatted_response})
 
+@app.route('/voice-interaction', methods=['POST'])
+def voice_interaction():
+    spoken_text = speech_to_text()
+    if "Sorry, I didn't catch that" not in spoken_text and "Recognition canceled" not in spoken_text:
+        ai_response = send_message(spoken_text)  # Assuming generate_text is properly defined
+        speech_success = text_to_speech(ai_response)
+        response_status = "success" if speech_success else "error"
+        return jsonify({"status": response_status, "response": ai_response})
+    else:
+        return jsonify({"status": "error", "response": spoken_text})
+
+def speech_to_text():
+    audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
+    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    print("Say something...")
+    result = speech_recognizer.recognize_once_async().get()
+    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        return result.text
+    elif result.reason == speechsdk.ResultReason.NoMatch:
+        return "Sorry, I didn't catch that."
+    elif result.reason == speechsdk.ResultReason.Canceled:
+        return "Recognition canceled."
+
+@app.route('/text-to-speech', methods=['POST'])
+def text_to_speech_route():
+    data = request.get_json()
+    text = data.get('text', '')
+
+    if not text:
+        return jsonify({'error': 'No text provided'}), 400
+
+    audio_data = text_to_speech(text)
+    if audio_data:
+        # Convert the byte stream to a response
+        return send_file(
+            io.BytesIO(audio_data),
+            mimetype="audio/wav",
+            as_attachment=False,  # Adjust based on whether you want the file to be downloaded or played
+        )
+    else:
+        return jsonify({'error': 'Failed to synthesize speech'}), 500
+
+def text_to_speech(text):
+    """Convert text to speech using Azure Cognitive Services."""
+    try:
+        # Request speech synthesis
+        result = speech_synthesizer.speak_text_async(text).get()
+
+        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            print("Text-to-speech conversion successful.")
+            return result.audio_data  # Returning audio data
+        else:
+            print(f"Error synthesizing audio: {result.reason}")
+            return None
+    except Exception as ex:
+        print(f"Error in text-to-speech conversion: {ex}")
+        return None
 
 if __name__ == '__main__':
     app.run()
